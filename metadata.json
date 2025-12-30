@@ -1,0 +1,7 @@
+{
+  "name": "CareerStrategist AI",
+  "description": "An AI-powered career coaching platform that provides resume analysis, skill gap visualizations, and personalized job search strategies using Gemini 3.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
