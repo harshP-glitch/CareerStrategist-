@@ -3,9 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { scoutJobs } from '../services/geminiService';
 import { ApplicationBundle, LogEntry, LogStatus } from '../types';
 
-// Removed redundant window.aistudio declaration to fix modifier/type conflicts.
-// The environment provides the AIStudio type globally.
-
 const Autopilot: React.FC = () => {
   const [role, setRole] = useState('');
   const [skills, setSkills] = useState('');
@@ -26,7 +23,6 @@ const Autopilot: React.FC = () => {
   }, [logs]);
 
   const checkKeyStatus = async () => {
-    // Relying on global aistudio definition. Cast to any if necessary to avoid compilation errors if strictly required.
     if ((window as any).aistudio) {
       const hasKey = await (window as any).aistudio.hasSelectedApiKey();
       setNeedsKey(!hasKey);
@@ -64,7 +60,6 @@ const Autopilot: React.FC = () => {
   const startAutopilot = async () => {
     if (!role || !skills) return;
 
-    // Pre-flight key check
     const hasKey = await (window as any).aistudio?.hasSelectedApiKey();
     if (!hasKey) {
       setNeedsKey(true);
@@ -76,26 +71,31 @@ const Autopilot: React.FC = () => {
     setLogs([]);
     setBacktrackList([]);
     
-    addLog("System check: Initializing Agent Command Center...", "loading");
-    await new Promise(r => setTimeout(r, 600));
-    updateLastLog("success", "System check: Command Center Online.");
-
-    addLog(`Target Profile: ${role} with ${skills.split(',').length} core skills.`, "info");
+    let currentStep = "Initialization";
     
-    addLog("Phase 1: Deep Web Scouting...", "loading", "Scouting");
     try {
+      addLog("System check: Initializing Agent Command Center...", "loading");
+      await new Promise(r => setTimeout(r, 600));
+      updateLastLog("success", "System check: Command Center Online.");
+
+      addLog(`Target Profile: ${role} with ${skills.split(',').length} core skills.`, "info");
+      
+      currentStep = "Phase 1: Deep Web Scouting";
+      addLog(`${currentStep}...`, "loading", "Scouting");
+      
       await new Promise(r => setTimeout(r, 1000));
       addLog("-> Triggering Google Search Engine Grounding...", "info", "Scouting");
       
       const results = await scoutJobs(skills.split(','), role);
-      
       updateLastLog("success", `Phase 1: Found ${results.length} valid opportunities.`);
 
-      addLog("Phase 2: Match Engine Scoring...", "loading", "Analysis");
+      currentStep = "Phase 2: Match Engine Scoring";
+      addLog(`${currentStep}...`, "loading", "Analysis");
       await new Promise(r => setTimeout(r, 1200));
       updateLastLog("success", "Phase 2: Application strategy calculated.");
 
-      addLog("Phase 3: Tailoring Content Packets...", "loading", "Tailoring");
+      currentStep = "Phase 3: Tailoring Content Packets";
+      addLog(`${currentStep}...`, "loading", "Tailoring");
       
       for (let i = 0; i < results.length; i++) {
         const res = results[i];
@@ -104,19 +104,22 @@ const Autopilot: React.FC = () => {
         updateLastLog("success", `Payload [ID: ${res.id.slice(0,4)}] ready for ${res.company}.`);
       }
       
-      addLog("Phase 4: Syncing Backtrack Vault...", "loading", "Security");
+      currentStep = "Phase 4: Syncing Backtrack Vault";
+      addLog(`${currentStep}...`, "loading", "Security");
       await new Promise(r => setTimeout(r, 800));
       updateLastLog("success", "Vault Sync Complete. Ready for review.");
 
       addLog("All tasks completed successfully.", "success");
       setBacktrackList(results);
     } catch (err: any) {
-      const errorMsg = err.message || "";
+      const errorMsg = err.message || "Unknown internal error";
+      const failurePoint = `[FAILED AT: ${currentStep}]`;
+      
       if (errorMsg.includes("Requested entity was not found")) {
-        addLog("CRITICAL: API key mismatch or expired. Re-authentication required.", "error");
+        addLog(`${failurePoint} CRITICAL: API key mismatch or expired. Re-authentication required.`, "error");
         setNeedsKey(true);
       } else {
-        addLog(`ERROR: Autopilot failed. ${errorMsg.slice(0, 50)}...`, "error");
+        addLog(`${failurePoint} ERROR: Autopilot failed. ${errorMsg.slice(0, 100)}...`, "error");
       }
       console.error(err);
     } finally {
@@ -142,6 +145,18 @@ const Autopilot: React.FC = () => {
       case 'loading': return <i className="fa-solid fa-circle-notch fa-spin mr-2"></i>;
       default: return <i className="fa-solid fa-info-circle mr-2 opacity-50"></i>;
     }
+  };
+
+  // Helper to format timestamp with milliseconds
+  const formatTime = (date: Date) => {
+    const time = date.toLocaleTimeString('en-GB', { 
+      hour12: false, 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit' 
+    });
+    const ms = date.getMilliseconds().toString().padStart(3, '0');
+    return `${time}.${ms}`;
   };
 
   return (
@@ -233,7 +248,7 @@ const Autopilot: React.FC = () => {
                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></div>
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500/50"></div>
               </div>
-              <span className="text-slate-500 tracking-widest text-[9px] font-black">AGENT_STREAM_V4.1</span>
+              <span className="text-slate-500 tracking-widest text-[9px] font-black">AGENT_STREAM_V4.2</span>
             </div>
             
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
@@ -244,7 +259,7 @@ const Autopilot: React.FC = () => {
               )}
               {logs.map((log) => (
                 <div key={log.id} className={`${getStatusColor(log.status)} flex items-start animate-in slide-in-from-left-2`}>
-                  <span className="text-slate-700 mr-2 shrink-0">[{log.timestamp.toLocaleTimeString([], { hour12: false })}]</span>
+                  <span className="text-slate-700 mr-2 shrink-0">[{formatTime(log.timestamp)}]</span>
                   <div className="flex-1">
                     {log.subTask && (
                       <span className="bg-slate-800 text-slate-500 px-1 rounded mr-1 uppercase text-[8px] font-black">
